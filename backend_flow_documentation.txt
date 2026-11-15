@@ -1,0 +1,322 @@
+================================================================================
+স্মার্ট এআই মার্কেটপ্লেস ও অ্যাডমিন প্ল্যাটফর্ম - পূর্ণাঙ্গ ব্যাকএন্ড আর্কিটেকচার ও ডেটা ফ্লো
+================================================================================
+তারিখ: ১২ সেপ্টেম্বর, ২০২৬
+প্রজেক্ট: Odaboo Smart Marketplace & Admin Dashboard (Node.js, Express, MongoDB, Mongoose)
+
+================================================================================
+১. ব্যাকএন্ড সিস্টেম আর্কিটেকচার ওভারভিউ (System Architecture Overview)
+================================================================================
+সিস্টেমটি Enterprise-Grade Modular Monolith আর্কিটেকচারে গঠিত, যা ভবিষ্যতে মাইক্রোসার্ভিসে 
+রূপান্তরের উপযোগী।
+
+মূল টেকনোলজি স্ট্যাক:
+- Core Runtime: Node.js (v20+ LTS) + TypeScript
+- Framework: Express.js (মডুলার রাউটার, কন্ট্রোলার ও সার্ভিস লেয়ার আর্কিটেকচার)
+- Database & ODM: MongoDB Atlas + Mongoose (সর্বাধুনিক deprecation-free কনফিগারেশন)
+- Data Validation: Zod Schema Validation (ইনকামিং রিকোয়েস্টে কঠোর ভ্যালিডেশন)
+- Real-Time Communication: Socket.io (লাইভ চ্যাটজিপিটি নেগোসিয়েশন ও অর্ডার নোটিফিকেশন)
+- AI Integration: OpenAI API (GPT-4o) + Computer Vision (ফটো কোয়ালিটি স্কোর ও ট্যাক্সোনমি)
+- Storage: AWS S3 / Cloudinary (প্রোডাক্ট ইমেজ ও ভেন্ডর ডকুমেন্টস)
+- Email Engine: Resend / Nodemailer (ক্লিন রেস্পন্সিভ HTML টেমপ্লেট সহ)
+
+আর্কিটেকচারাল পলিসি:
+১. Action-Oriented API Route Naming: সমস্ত এন্ডপয়েন্টে ডেসক্রিপটিভ অ্যাকশন পাথ (যেমন: /create-something, 
+   /get-all-data, /view-details/:id) ব্যবহার বাধ্যতামূলক।
+২. Mongoose Modernization: findOneAndUpdate() এ deprecated { new: true } সম্পূর্ণ নিষিদ্ধ; 
+   সর্বদা { returnDocument: 'after' } ব্যবহার করতে হবে।
+৩. Strict Data Validation: প্রতিটি রাউটে Zod স্কিমা দিয়ে ভ্যালিডেশন নিশ্চিত করা।
+৪. Centralized Email Templates: কন্ট্রোলারে ইনলাইন HTML লেখা নিষিদ্ধ; সর্বদা src/shared/utils/emailTemplates.ts-এ 
+   আলাদা ফাংশনে HTML সংরক্ষণ করতে হবে।
+
+================================================================================
+২. ডেটাবেস মডেল এবং স্কিমা ডিজাইন (Database Models & Schemas)
+================================================================================
+
+১) User Model (গ্রাহক, সেলার, প্রোভাইডার ও অ্যাডমিন)
+---------------------------------------------------
+Schema Fields:
+- _id: ObjectId
+- fullName: String (Required)
+- email: String (Unique, Indexed, Lowercase)
+- passwordHash: String (Bcrypt hashed)
+- phone: String
+- roles: Array of Strings ['customer', 'provider', 'seller', 'admin', 'superadmin']
+- activeRole: String ('customer' | 'provider' | 'seller' | 'admin')
+- avatar: String (URL)
+- status: String ('Active' | 'Blocked' | 'Pending_Verification')
+- providerDetails:
+    * companyName: String
+    * providerType: String ('Personal' | 'Company')
+    * rating: Number (Default: 5.0)
+    * reviewsCount: Number (Default: 0)
+    * tradeLicense: String
+    * verified: Boolean (Default: false)
+- sellerDetails:
+    * storeName: String
+    * verifiedSeller: Boolean (Default: false)
+    * rating: Number (Default: 5.0)
+    * totalSales: Number (Default: 0)
+- createdAt, updatedAt: Timestamps
+
+২) MarketplaceProduct Model (ই-কমার্স ও এআই পণ্য)
+------------------------------------------------
+Schema Fields:
+- _id: ObjectId
+- name: String (Required, Indexed)
+- category: String (Indexed)
+- subcategory: String
+- price: Number (Regular Listing Price)
+- minNegotiablePrice: Number (গোপন ফ্লোর প্রাইস - শুধুমাত্র AI এর জন্য, বায়ারদের কাছে গোপন)
+- condition: String ('Brand New' | 'Like New' | 'Refurbished' | 'Good')
+- color: String (AI Detected)
+- tags: Array of Strings (Indexed)
+- image: String (Primary High-Res Image URL)
+- galleryImages: Array of Strings
+- description: String
+- sellerId: ObjectId (Ref: 'User', Indexed)
+- sellerName: String
+- status: String ('Available' | 'Sold' | 'UnderReview')
+- complianceApproved: Boolean (Default: true)
+- aiInspection:
+    * detectedType: String
+    * detectedCategory: String
+    * detectedColor: String
+    * qualityScore: Number (0 - 100)
+    * angleAdvice: String
+    * lightingStatus: String ('Optimal' | 'Suboptimal' | 'Too Dim')
+    * suggestedTags: Array of Strings
+- chatGptRules:
+    * lowestAcceptablePrice: Number
+    * shippingTerms: String
+    * returnPolicy: String
+    * customFaq: String
+    * allowNegotiation: Boolean (Default: true)
+- createdAt, updatedAt: Timestamps
+
+৩) ServiceBooking Model (অন-ডিমান্ড সার্ভিস বুকিং)
+------------------------------------------------
+Schema Fields:
+- _id: ObjectId
+- bookingCode: String (Unique, e.g. 'BK-9012')
+- customerId: ObjectId (Ref: 'User', Indexed)
+- providerId: ObjectId (Ref: 'User', Indexed)
+- serviceTitle: String
+- category: String
+- bookingDate: Date
+- timeSlot: String
+- amount: Number
+- address: String
+- customerNotes: String
+- status: String ('Pending' | 'Confirmed' | 'Completed' | 'Cancelled')
+- paymentStatus: String ('Unpaid' | 'Escrow_Held' | 'Released_To_Provider' | 'Refunded')
+- createdAt, updatedAt: Timestamps
+
+৪) ChatGptNegotiationLog Model (এআই অডিট ও নিরাপত্তা লগ)
+------------------------------------------------------
+Schema Fields:
+- _id: ObjectId
+- sessionId: String (Indexed)
+- productId: ObjectId (Ref: 'MarketplaceProduct', Indexed)
+- productName: String
+- buyerId: ObjectId (Ref: 'User', Optional)
+- sellerId: ObjectId (Ref: 'User')
+- originalPrice: Number
+- offeredPrice: Number
+- finalNegotiatedPrice: Number (Null if rejected)
+- status: String ('Accepted' | 'Rejected' | 'In_Progress')
+- conversationSnippet: String
+- clientIp: String
+- createdAt: Timestamp
+
+৫) PlatformSettings Model (গ্লোবাল সেটিংস ও সিএমএস)
+--------------------------------------------------
+Schema Fields:
+- platformName: String
+- primaryColor: String (Hex code, e.g. '#0EA5E9')
+- logoUrl: String
+- maxPlatformDiscountPercent: Number (Default: 25)
+- allowAiNegotiationsGlobally: Boolean (Default: true)
+- forbiddenKeywords: Array of Strings (Blacklist)
+- aiTaxonomyCategories: Array of Strings
+- bilingualPolicies:
+    * terms_EN: String, terms_DE: String
+    * faq_EN: String, faq_DE: String
+
+================================================================================
+৩. অ্যাকশন-অরিয়েন্টেড এপিআই রুটসমূহ (Action-Oriented API Routes)
+================================================================================
+
+[ক] অথেন্টিকেশন ও ইউজার প্রোফাইল:
+---------------------------------
+- POST /api/v1/auth/register-user
+    * নতুন ইউজার তৈরি ও ভ্যালিডেশন
+- POST /api/v1/auth/login-user
+    * ক্রেডেনশিয়াল ভেরিফিকেশন ও JWT ইস্যু
+- GET  /api/v1/users/view-profile
+    * লগইন ইউজারের প্রোফাইল তথ্য রিটার্ন
+- POST /api/v1/users/update-profile
+    * নাম, ফোন, ঠিকানা ও বায়ো আপডেট
+- POST /api/v1/users/switch-role-mode
+    * Customer ও Provider মোডের মধ্যে সুইচ
+
+[খ] সার্ভিসেস ও অন-ডিমান্ড বুকিং:
+--------------------------------
+- POST /api/v1/services/create-new-service
+    * প্রোভাইডার কর্তৃক নতুন সার্ভিস যোগ
+- GET  /api/v1/services/get-all-services
+    * ফিল্টার ও ক্যাটাগরি অনুসারে সার্ভিসেস ফেচ
+- POST /api/v1/bookings/create-service-booking
+    * বুকিং রিকোয়েস্ট তৈরি ও এসক্রো ফান্ড লক
+- GET  /api/v1/bookings/get-customer-bookings
+    * গ্রাহকের বুকিং হিস্ট্রি ফেচ
+- GET  /api/v1/bookings/get-provider-requests
+    * প্রোভাইডারের কাছে আসা সার্ভিস রিকোয়েস্ট
+- POST /api/v1/bookings/update-booking-status
+    * প্রোভাইডার কর্তৃক Accept/Reject/Complete
+
+[গ] সেলার পোর্টাল ও প্রোডাক্ট আপলোড:
+-----------------------------------
+- POST /api/v1/seller/upload-product-photo
+    * ইমেজ S3/ক্লাউডে আপলোড
+- POST /api/v1/seller/run-ai-photo-inspection
+    * এআই দ্বারা ছবির শার্পনেস, কোয়ালিটি স্কোর (০-১০০) ও অ্যাঙ্গেল অ্যাডভাইস
+- POST /api/v1/seller/create-marketplace-product
+    * গোপন ফ্লোর প্রাইস ও চ্যাটজিপিটি ট্রেইনিং রুলস সহ প্রোডাক্ট পাবলিশ
+- GET  /api/v1/seller/get-portfolio-products
+    * সেলারের নিজস্ব প্রোডাক্ট পোর্টফোলিও
+- POST /api/v1/seller/toggle-product-status
+    * প্রোডাক্ট Available বা Sold হিসেবে টগল
+
+[ঘ] বায়ার মার্কেটপ্লেস ও এআই নেগোসিয়েশন:
+-----------------------------------------
+- GET  /api/v1/marketplace/get-all-products
+    * মাল্টি-অ্যাট্রিবিউট ফিল্টারিং (রঙ, দাম, ক্যাটাগরি, স্টক)
+- GET  /api/v1/marketplace/view-product-details/:id
+    * সিঙ্গেল প্রোডাক্ট বিস্তারিত পেজ ডাটা
+- POST /api/v1/ai/process-chatgpt-negotiation
+    * বায়ারের অফার পরীক্ষা, ফ্লোর প্রাইস চেক এবং এআই সিদ্ধান্ত (Accept/Counter/Reject)
+- POST /api/v1/orders/create-order-checkout
+    * নেগোশিয়েটেড ডিসকাউন্ট সহ ইনস্ট্যান্ট অর্ডার প্লেসমেন্ট
+- GET  /api/v1/orders/view-order-receipt/:orderId
+    * অর্ডার কনফার্মেশন ও ট্র্যাকিং স্ট্যাটাস
+
+[ঙ] অ্যাডমিন কমান্ড সেন্টার ও কনটেন্ট সিএমএস:
+-------------------------------------------
+- GET  /api/v1/admin/get-platform-metrics
+    * গ্রস মার্কেটপ্লেস ভলিউম, ইউজার সংখ্যা ও এআই নেগোসিয়েশন মেট্রিক্স
+- POST /api/v1/admin/moderate-product-listing
+    * অ্যাডমিন কর্তৃক পণ্য Approve, Flag বা Delete
+- GET  /api/v1/admin/get-all-customers
+    * সমস্ত গ্রাহকের তালিকা ও ব্যানের নিয়ন্ত্রণ
+- GET  /api/v1/admin/get-all-providers
+    * সমস্ত প্রোভাইডারের ভেরিফিকেশন ও স্টোর স্ট্যাটাস
+- POST /api/v1/admin/manage-user-status
+    * ইউজার Block বা Unblock করা
+- GET  /api/v1/ai/get-chatgpt-audit-logs
+    * সমস্ত লাইভ নেগোসিয়েশন ট্রান্সক্রিপ্ট অডিট
+- POST /api/v1/ai/update-global-ai-limits
+    * সর্বোচ্চ ডিসকাউন্ট সীমা (%) ও নিষিদ্ধ শব্দাবলী ব্লকলিস্ট সেভ
+- POST /api/v1/admin/save-platform-customization
+    * থিম কালার, লোগো এবং দ্বিভাষিক পলিসি সেভ
+
+================================================================================
+৪. এন্ড-টু-এন্ড লাইফসাইকেল ফ্লো (Lifecycle Pipelines)
+================================================================================
+
+ফ্লো ১: এআই ফটো স্ক্যানার ও সেলার আপলোড পাইপলাইন
+-----------------------------------------------
+১. সেলার emin-frontend-এর /seller/upload পেজে ছবি ড্রপ বা সিলেক্ট করেন।
+২. ফ্রন্টএন্ড POST /api/v1/seller/run-ai-photo-inspection কল করে।
+৩. ব্যাকএন্ডের এআই ভিশন মডেল ছবির কনট্রাস্ট, আলো এবং শার্পনেস বিশ্লেষণ করে 
+   ০-১০০ কোয়ালিটি স্কোর বের করে, রঙ এবং ট্যাক্সোনমি ক্যাটাগরি ডিটেক্ট করে।
+৪. সেলার বিক্রয়মূল্য ($980), গোপন ফ্লোর প্রাইস ($910) এবং চ্যাটজিপিটির শিপিং/রিটার্ন রুলস সেট করেন।
+৫. POST /api/v1/seller/create-marketplace-product কলের মাধ্যমে ডেটাবেসে সংরক্ষিত হয় 
+   এবং রিয়েল-টাইমে অ্যাডমিন মডারেশন কিউতে পৌঁছে যায়।
+
+ফ্লো ২: বায়ার চ্যাটজিপিটি নেগোসিয়েশন ও ইনস্ট্যান্ট চেকআউট পাইপলাইন
+-----------------------------------------------------------------
+১. বায়ার প্রোডাক্ট পেজে চ্যাট উইজেট ওপেন করে অফার করেন: "Can you accept $920?"
+২. ফ্রন্টএন্ড POST /api/v1/ai/process-chatgpt-negotiation কল করে।
+৩. ব্যাকএন্ড কন্ট্রোলার:
+   ক. সেলারের গোপন ফ্লোর প্রাইস ($910) লোড করে।
+   খ. অ্যাডমিনের গ্লোবাল ম্যাক্সিমাম ডিসকাউন্ট সীমা (Max 25%) চেক করে।
+   গ. বায়ারের অফার ($920) ফ্লোর প্রাইসের ($910) সমান বা বেশি হওয়ায় এআই তাৎক্ষণিক 
+      অফার অ্যাকসেপ্ট করে এবং বিশেষ ডিসকাউন্ট ভাউচার তৈরি করে: 'AI-OFFER-920'।
+   ঘ. পুরো আলাপচারিতার স্নsnippet ChatGptNegotiationLog-এ সংরক্ষিত হয়।
+৪. বায়ার চ্যাটের ভেতর "Checkout with Discount ($920)" বাটনে চাপলে সরাসরি চেকআউট মডাল ওপেন হয়।
+৫. POST /api/v1/orders/create-order-checkout কলের মাধ্যমে অর্ডার তৈরি হয় এবং প্রোডাক্টের 
+   স্ট্যাটাস স্বয়ংক্রিয়ভাবে 'Sold' হয়ে যায়।
+৬. অ্যাডমিন ড্যাশবোর্ডের /chatgpt-oversight পেজে পুরো অডিট ট্রেইল তাৎক্ষণিক দৃশ্যমান হয়।
+
+ফ্লো ৩: অন-ডিমান্ড সার্ভিস বুকিং ও এসক্রো পাইপলাইন
+------------------------------------------------
+১. বায়ার প্রোভাইডারের সার্ভিস সিলেক্ট করে তারিখ, সময় এবং ঠিকানা সাবমিট করেন।
+২. POST /api/v1/bookings/create-service-booking কল হয়ে এসক্রোতে পেমেন্ট লক হয়।
+৩. প্রোভাইডারের অ্যাকাউন্টে Socket.io ইভেন্টের মাধ্যমে নতুন বুকিং নোটিফিকেশন পৌঁছে যায়।
+৪. প্রোভাইডার কাজ শেষ করলে স্ট্যাটাস 'Completed' মার্ক করেন এবং ফান্ড রিলিজ হয়।
+
+================================================================================
+৫. কোড কোয়ালিটি, মঙ্গুজ স্ট্যান্ডার্ড ও ইমেইল টেমপ্লেট
+================================================================================
+
+[১] Deprecation-Free Mongoose Update Standard:
+---------------------------------------------
+// { new: true } সম্পূর্ণ নিষিদ্ধ; সর্বদা { returnDocument: 'after' } ব্যবহার্য
+export const updateProductListingStatus = async (productId: string, newStatus: string) => {
+  const updatedProduct = await MarketplaceProduct.findByIdAndUpdate(
+    productId,
+    { status: newStatus },
+    { returnDocument: 'after', runValidators: true }
+  ).lean();
+
+  if (!updatedProduct) {
+    throw new AppError("Product not found with specified ID", "NOT_FOUND", 404);
+  }
+  return updatedProduct;
+};
+
+[২] সেন্ট্রালাইজড ইমেইল টেমপ্লেট (src/shared/utils/emailTemplates.ts):
+-------------------------------------------------------------------
+export const generateOrderConfirmationEmail = (data: {
+  buyerName: string;
+  orderId: string;
+  productName: string;
+  paidAmount: number;
+  discountSaved: number;
+  sellerName: string;
+}) => {
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmation</title>
+  </head>
+  <body style="font-family: Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px;">
+    <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0;">
+      <h1 style="color: #0f172a; font-size: 24px; margin-bottom: 8px;">Order Confirmed!</h1>
+      <p style="color: #64748b; font-size: 14px;">Hello ${data.buyerName}, your order <strong>#${data.orderId}</strong> has been secured via Odaboo Escrow.</p>
+      
+      <div style="background-color: #f1f5f9; border-radius: 12px; padding: 16px; margin: 24px 0;">
+        <p style="margin: 0; font-weight: bold; color: #1e293b;">${data.productName}</p>
+        <p style="margin: 4px 0 0; color: #64748b; font-size: 13px;">Seller: ${data.sellerName}</p>
+        <div style="margin-top: 12px; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 14px;">
+          <span style="color: #059669; font-weight: bold;">AI Negotiated Savings: $${data.discountSaved}</span><br>
+          <strong style="color: #0f172a; font-size: 18px;">Total Paid: $${data.paidAmount}</strong>
+        </div>
+      </div>
+      
+      <p style="color: #94a3b8; font-size: 12px; text-align: center;">Odaboo Smart Marketplace • All rights reserved.</p>
+    </div>
+  </body>
+  </html>
+  `;
+};
+
+================================================================================
+শেষ কথা:
+এই আর্কিটেকচারটি প্ল্যাটফর্মের ফ্রন্টএন্ড এবং অ্যাডমিন ড্যাশবোর্ডের প্রতিটি পেজ, স্টেট এবং
+অ্যাকশনের সাথে ১০০% সুসংগত এবং প্রোডাকশনে ডিপ্লয়মেন্টের জন্য সম্পূর্ণ উপযুক্ত।
+================================================================================

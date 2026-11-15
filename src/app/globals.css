@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1eb9c7;
+  --color-primary-hover: #199ea8;
+  --color-secondary: #F3F4F6;
+  --color-accent: #FBBF24;
+
+  --color-brand-light: #e2f9fa;
+  --color-brand-dark: #17545b;
+
+  /* Global overwrite of purple to #1eb9c7 proportional shades */
+  --color-purple-50: #e2f9fa;
+  --color-purple-100: #bcf0f3;
+  --color-purple-200: #84e3e8;
+  --color-purple-300: #44ced6;
+  --color-purple-400: #24b8c1;
+  --color-purple-500: #1eb9c7;
+  --color-purple-600: #199ea8;
+  --color-purple-700: #178089;
+  --color-purple-800: #18666e;
+  --color-purple-900: #17545b;
+  --color-purple-950: #0a363c;
+
+  --shadow-premium: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+  --shadow-premium-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  --radius-premium: 1rem;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #0F172A;
+  --primary: #1eb9c7;
+  --secondary: #F8FAFC;
+  --muted: #64748B;
+  --border: #E2E8F0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), sans-serif;
+  overflow-x: hidden;
+}
+
+.premium-card {
+  @apply bg-white dark:bg-slate-900 rounded-[--radius-premium] border border-slate-100 dark:border-slate-800 shadow-[--shadow-premium] transition-all duration-300 hover:shadow-[--shadow-premium-hover] hover:-translate-y-1;
+}
+
+.glass-effect {
+  @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800/50;
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-slow-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+.animate-spin-slow-reverse {
+  animation: spin-slow-reverse 8s linear infinite;
+}
+
+@layer components {
+  .cms-content h1,
+  .cms-content h2,
+  .cms-content h3,
+  .cms-content h4 {
+    font-weight: 700;
+    line-height: 1.25;
+    color: #0f172a;
+  }
+
+  .cms-content h1 { margin: 1rem 0 0.5rem; font-size: 2rem; }
+  .cms-content h2 { margin: 1rem 0 0.5rem; font-size: 1.5rem; }
+  .cms-content h3 { margin: 0.75rem 0 0.4rem; font-size: 1.25rem; }
+  .cms-content h4 { margin: 0.75rem 0 0.4rem; font-size: 1.125rem; }
+  .cms-content p { margin: 0.5rem 0; line-height: 1.75; }
+  .cms-content ul { margin: 0.5rem 0; list-style: disc; padding-left: 1.4rem; }
+  .cms-content ol { margin: 0.5rem 0; list-style: decimal; padding-left: 1.4rem; }
+  .cms-content li { margin: 0.25rem 0; }
+  .cms-content a { color: #199ea8; text-decoration: underline; }
+  .cms-content blockquote {
+    margin: 0.75rem 0;
+    border-left: 3px solid #e2e8f0;
+    padding-left: 0.9rem;
+  }
+  .cms-content img { max-width: 100%; height: auto; border-radius: 1rem; }
+  .cms-content .cms-icon {
+    display: inline-flex;
+    margin: 0 0.2rem;
+    vertical-align: -0.2em;
+  }
+}
